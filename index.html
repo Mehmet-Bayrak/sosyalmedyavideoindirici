@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video İndirici</title>
+    <style>
+        :root {
+            --koyu: #111827;
+            --kart: #1f2937;
+            --vurgu: #ef4444;
+            --yazi: #f9fafb;
+            --gri: #9ca3af;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: var(--koyu);
+            color: var(--yazi);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .kart {
+            background: var(--kart);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 560px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+
+        .aciklama {
+            color: var(--gri);
+            margin-bottom: 24px;
+        }
+
+        .siteler {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .site {
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .youtube { background: #ff0000; }
+        .tiktok { background: #000000; border: 1px solid #25f4ee; }
+        .instagram { background: linear-gradient(45deg, #f09433, #dc2743, #bc1888); }
+
+        form {
+            display: flex;
+            gap: 8px;
+        }
+
+        input {
+            flex: 1;
+            padding: 14px;
+            border: 2px solid #374151;
+            border-radius: 10px;
+            background: var(--koyu);
+            color: var(--yazi);
+            font-size: 1rem;
+            min-width: 0;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--vurgu);
+        }
+
+        button {
+            padding: 14px 22px;
+            border: none;
+            border-radius: 10px;
+            background: var(--vurgu);
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        #durum {
+            margin-top: 20px;
+            min-height: 24px;
+        }
+
+        .hata { color: #f87171; }
+        .basari { color: #4ade80; }
+
+        .not {
+            margin-top: 24px;
+            font-size: 0.8rem;
+            color: var(--gri);
+        }
+
+        @media (max-width: 480px) {
+            form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="kart">
+        <h1>🎬 Video İndirici</h1>
+        <p class="aciklama">Linki yapıştırın, videoyu filigransız indirin.</p>
+
+        <div class="siteler">
+            <span class="site youtube">YouTube</span>
+            <span class="site tiktok">TikTok</span>
+            <span class="site instagram">Instagram</span>
+        </div>
+
+        <form id="form">
+            <input type="url" id="link" placeholder="https://..." required>
+            <button type="submit" id="dugme">İndir</button>
+        </form>
+
+        <p id="durum"></p>
+
+        <p class="not">Sadece kendi videolarınızı veya indirme izni olan videoları indirin.</p>
+    </main>
+
+    <script>
+        const form = document.getElementById("form");
+        const linkKutusu = document.getElementById("link");
+        const dugme = document.getElementById("dugme");
+        const durum = document.getElementById("durum");
+
+        // Site internetten açılınca kendi sunucusuna, dosyadan açılınca bilgisayardaki sunucuya gider
+        const SUNUCU = location.protocol === "file:" ? "http://localhost:3000" : "";
+
+        function durumYaz(metin, tur) {
+            durum.textContent = metin;
+            durum.className = tur || "";
+        }
+
+        form.addEventListener("submit", async (olay) => {
+            olay.preventDefault();
+            dugme.disabled = true;
+            durumYaz("⏳ Video indiriliyor, lütfen bekleyin...");
+
+            try {
+                const cevap = await fetch(SUNUCU + "/indir", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ link: linkKutusu.value }),
+                });
+
+                if (!cevap.ok) {
+                    const veri = await cevap.json();
+                    durumYaz("❌ " + veri.hata, "hata");
+                    return;
+                }
+
+                // Dosya adını sunucunun gönderdiği başlıktan al
+                const baslik = cevap.headers.get("Content-Disposition") || "";
+                const eslesme = baslik.match(/filename\*=UTF-8''(.+)/);
+                const dosyaAdi = eslesme ? decodeURIComponent(eslesme[1]) : "video.mp4";
+
+                // Gelen videoyu bilgisayara kaydet
+                const video = await cevap.blob();
+                const adres = URL.createObjectURL(video);
+                const a = document.createElement("a");
+                a.href = adres;
+                a.download = dosyaAdi;
+                a.click();
+                URL.revokeObjectURL(adres);
+
+                durumYaz("✅ İndirildi: " + dosyaAdi, "basari");
+                linkKutusu.value = "";
+            } catch {
+                durumYaz("❌ Sunucuya ulaşılamadı. Biraz sonra tekrar deneyin.", "hata");
+            } finally {
+                dugme.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
